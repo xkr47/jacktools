@@ -22,7 +22,6 @@ public class DebugDump {
             System.out.println("ERROR : Status : " + status);
             throw ex;
         }
-        System.out.println(jack);
 
         jack.setPortRegistrationCallback(new JackPortRegistrationCallback() {
             @Override
@@ -46,11 +45,9 @@ public class DebugDump {
                 System.out.println("Disconnected " + portName1 + " and " + portName2);
             }
         });
-
         jack.setBuffersizeCallback((client, bufferSize) -> {
             System.out.println("Buffer size changed to " + bufferSize);
         });
-
         jack.setClientRegistrationCallback(new JackClientRegistrationCallback() {
             @Override
             public void clientRegistered(JackClient invokingClient, String clientName) {
