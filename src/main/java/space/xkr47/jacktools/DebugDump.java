@@ -8,6 +8,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class DebugDump {
+    /**
+     * This is a simple JACK client that just dumps more or less any info it can get its hands on, including updates.
+     */
     public static void main(String[] args) throws Exception {
         EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer);
         EnumSet<JackStatus> status = EnumSet.noneOf(JackStatus.class);
