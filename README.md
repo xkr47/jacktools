@@ -1,5 +1,5 @@
 # jacktools
-Jack tools written in Java, using https://github.com/jaudiolibs/jnajack
+JACK audio tools written in Java, using https://github.com/jaudiolibs/jnajack
 
 # Tools
 
