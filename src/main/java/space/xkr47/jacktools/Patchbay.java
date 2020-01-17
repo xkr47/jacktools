@@ -4,14 +4,12 @@ import org.jaudiolibs.jnajack.*;
 
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
-import java.util.function.BiFunction;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class Patchbay {
 
@@ -26,7 +24,8 @@ public class Patchbay {
     final JackClient jack;
     final Jack jacki;
     final Map<String, Set<String>> connectedPorts = new TreeMap<>();
-    final BlockingQueue<Runnable> jobs = new ArrayBlockingQueue<>(100);
+    final ScheduledThreadPoolExecutor pool = new ScheduledThreadPoolExecutor(1);
+    final AtomicReference<Runnable> graphCheckTask = new AtomicReference<>();
 
     Patchbay() throws JackException {
         EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer);
@@ -43,14 +42,30 @@ public class Patchbay {
     private Patchbay init() throws JackException {
         jack.setPortRegistrationCallback(new JackPortRegistrationCallback() {
             @Override
-            public void portRegistered(JackClient client, String portFullName) {
-                System.out.println("Port registered: " + portFullName);
+            public void portRegistered(JackClient client, String addedPort) {
+                System.out.println("Port registered: " + addedPort);
+                synchronized (connectedPorts) {
+                    Set<String> strings = connectedPorts.putIfAbsent(addedPort, new HashSet<>());
+                    if (!strings.isEmpty()) {
+                        System.err.println("Warning: existing port re-registered: " + addedPort);
+                    }
+                }
             }
 
             @Override
-            public void portUnregistered(JackClient client, String portFullName) {
-                System.out.println("Port unregistered: " + portFullName);
-                synchroniz
+            public void portUnregistered(JackClient client, String removedPort) {
+                System.out.println("Port unregistered: " + removedPort);
+                synchronized (connectedPorts) {
+                    Set<String> connections = connectedPorts.remove(removedPort);
+                    if (connections == null) {
+                        System.err.println("Warning: non-existing port re-removed: " + removedPort);
+                    } else if (!connections.isEmpty()) {
+                        System.err.println("Warning: existing port '" + removedPort + "' removed with connections to " + connections);
+                        for (String connection : connections) {
+                            connectedPorts.get(connection).remove(removedPort);
+                        }
+                    }
+                }
             }
         });
         jack.setPortConnectCallback(new JackPortConnectCallback() {
@@ -58,8 +73,8 @@ public class Patchbay {
             public void portsConnected(JackClient client, String portName1, String portName2) {
                 System.out.println("Connected " + portName1 + " and " + portName2);
                 synchronized (connectedPorts) {
-                    connectedPorts.compute(portName1, addConnectedPort(portName2));
-                    connectedPorts.compute(portName2, addConnectedPort(portName1));
+                    connectedPorts.get(portName1).add(portName2);
+                    connectedPorts.get(portName2).add(portName1);
                 }
             }
 
@@ -72,26 +87,24 @@ public class Patchbay {
                 }
             }
         });
-        jack.setBuffersizeCallback((client, bufferSize) -> {
-            System.out.println("Buffer size changed to " + bufferSize);
-        });
         jack.setClientRegistrationCallback(new JackClientRegistrationCallback() {
             @Override
             public void clientRegistered(JackClient invokingClient, String clientName) {
                 System.out.println("Client regixtered: " + clientName);
             }
-
             @Override
             public void clientUnregistered(JackClient invokingClient, String clientName) {
                 System.out.println("Client unregixtered: " + clientName);
             }
         });
         jack.setGraphOrderCallback(invokingClient -> {
-            System.out.println("Checking graph");
+            System.out.println("Graph updated");
+            Runnable oldTask = graphCheckTask.getAndSet(null);
+            if (oldTask != null) pool.remove(oldTask);
             Set<String>[] portsToMove = new Set[2];
             synchronized (connectedPorts) {
                 for (Entry<String, Set<String>> connectedPort : connectedPorts.entrySet()) {
-                    System.out.printf("%40s <-> %s\n", connectedPort.getKey(), connectedPort.getValue());
+                    System.out.printf("%54s <-> %s\n", connectedPort.getKey(), connectedPort.getValue());
                 }
                 for (int i = 0; i < 2; ++i) {
                     Set<String> ports2 = connectedPorts.get("system:playback_" + (i + 1));
@@ -101,7 +114,9 @@ public class Patchbay {
                 }
             }
             if (!portsToMove[0].isEmpty() || !portsToMove[1].isEmpty()) {
-                jobs.add(() -> {
+                System.out.println("Scheduling check " + portsToMove[0] + " AND " + portsToMove[1]);
+                Runnable r = () -> {
+                    System.out.println("Checking ports..");
                     for (int i = 0; i < 2; ++i) {
                         for (String portToMove : portsToMove[i]) {
                             try {
@@ -113,24 +128,23 @@ public class Patchbay {
                             }
                         }
                     }
-                });
+                };
+                graphCheckTask.set(r);
+                pool.schedule(r, 100, MILLISECONDS);
             }
             System.out.println("---");
-        });
-        jack.setSampleRateCallback((client, sampleRate) -> {
-            System.out.println("Sample rate changed to " + sampleRate);
-        });
-        jack.setXrunCallback(client -> {
-            System.out.println("Xrun");
         });
         String[] ports = jacki.getPorts(jack, null, null, null);
         synchronized (connectedPorts) {
             for (String port : ports) {
+                connectedPorts.put(port, new HashSet<>());
+            }
+            for (String port : ports) {
                 String[] allConnections = jacki.getAllConnections(jack, port);
                 for (String port2 : allConnections) {
-                    connectedPorts.compute(port, addConnectedPort(port2));
+                    connectedPorts.get(port).add(port2);
                 }
-                System.out.println("Port " + port + (allConnections.length > 0 ? " connected to " + Arrays.toString(allConnections) : ""));
+                //System.out.println("Port " + port + (allConnections.length > 0 ? " connected to " + Arrays.toString(allConnections) : ""));
             }
         }
         jack.activate();
@@ -171,41 +185,10 @@ public class Patchbay {
     }
 
     private void loop() throws InterruptedException {
-        //noinspection InfiniteLoopStatement
-        while (true) {
-            /*
-            Map<String, String> hm = new LinkedHashMap<>();
-            hm.put("n", String.valueOf(jack.getName()));
-            hm.put("t", String.valueOf(jacki.getTime()));
-            hm.put("ft", String.valueOf(jack.getFrameTime()));
-            hm.put("lft", String.valueOf(jack.getLastFrameTime()));
-            hm.put("ctf", String.valueOf(jack.getCurrentTransportFrame()));
-            hm.put("sr", String.valueOf(jack.getSampleRate()));
-            hm.put("bs", String.valueOf(jack.getBufferSize()));
-            System.out.println(hm);
-            */
-            Runnable take = jobs.take();
-            System.out.println("Running job");
-            try {
-                take.run();
-            } catch (RuntimeException e) {
-                System.err.println("Job failed: ");
-                e.printStackTrace();
-            }
-            System.out.println("Job complete");
-        }
-    }
-
-    static BiFunction<String, Set<String>, Set<String>> addConnectedPort(String newPort2) {
-        return (port1, ports2) -> {
-            if (ports2 == null) ports2 = new HashSet<>();
-            ports2.add(newPort2);
-            return ports2;
-        };
+        pool.submit(() -> 0); // ensure pool has at least one thread running so the app doesn't terminate
     }
 
     boolean isConnected(String port1, String port2) {
         return connectedPorts.getOrDefault(port1, emptySet()).contains(port2);
     }
-
 }
