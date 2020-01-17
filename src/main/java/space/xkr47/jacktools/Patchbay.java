@@ -4,12 +4,14 @@ import org.jaudiolibs.jnajack.*;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.stream.Collectors.toList;
 
 public class Patchbay {
 
@@ -25,7 +27,7 @@ public class Patchbay {
     final Jack jacki;
     final Map<String, Set<String>> connectedPorts = new TreeMap<>();
     final ScheduledThreadPoolExecutor pool = new ScheduledThreadPoolExecutor(1);
-    final AtomicReference<Runnable> graphCheckTask = new AtomicReference<>();
+    final AtomicReference<ScheduledFuture<?>> graphCheckTask = new AtomicReference<>();
 
     Patchbay() throws JackException {
         EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer);
@@ -46,7 +48,7 @@ public class Patchbay {
                 System.out.println("Port registered: " + addedPort);
                 synchronized (connectedPorts) {
                     Set<String> strings = connectedPorts.putIfAbsent(addedPort, new HashSet<>());
-                    if (!strings.isEmpty()) {
+                    if (strings != null) {
                         System.err.println("Warning: existing port re-registered: " + addedPort);
                     }
                 }
@@ -71,8 +73,8 @@ public class Patchbay {
         jack.setPortConnectCallback(new JackPortConnectCallback() {
             @Override
             public void portsConnected(JackClient client, String portName1, String portName2) {
-                System.out.println("Connected " + portName1 + " and " + portName2);
                 synchronized (connectedPorts) {
+                    System.out.println("Connected " + portName1 + " and " + portName2);
                     connectedPorts.get(portName1).add(portName2);
                     connectedPorts.get(portName2).add(portName1);
                 }
@@ -80,8 +82,8 @@ public class Patchbay {
 
             @Override
             public void portsDisconnected(JackClient client, String portName1, String portName2) {
-                System.out.println("Disconnected " + portName1 + " and " + portName2);
                 synchronized (connectedPorts) {
+                    System.out.println("Disconnected " + portName1 + " and " + portName2);
                     connectedPorts.get(portName1).remove(portName2);
                     connectedPorts.get(portName2).remove(portName1);
                 }
@@ -99,41 +101,12 @@ public class Patchbay {
         });
         jack.setGraphOrderCallback(invokingClient -> {
             System.out.println("Graph updated");
-            Runnable oldTask = graphCheckTask.getAndSet(null);
-            if (oldTask != null) pool.remove(oldTask);
-            Set<String>[] portsToMove = new Set[2];
-            synchronized (connectedPorts) {
-                for (Entry<String, Set<String>> connectedPort : connectedPorts.entrySet()) {
-                    System.out.printf("%54s <-> %s\n", connectedPort.getKey(), connectedPort.getValue());
-                }
-                for (int i = 0; i < 2; ++i) {
-                    Set<String> ports2 = connectedPorts.get("system:playback_" + (i + 1));
-                    portsToMove[i] = ports2.stream()
-                            .filter((port2) -> !port2.startsWith("C* Eq10X2 - 10-band equalizer:Out "))
-                            .collect(Collectors.toSet());
-                }
-            }
-            if (!portsToMove[0].isEmpty() || !portsToMove[1].isEmpty()) {
-                System.out.println("Scheduling check " + portsToMove[0] + " AND " + portsToMove[1]);
-                Runnable r = () -> {
-                    System.out.println("Checking ports..");
-                    for (int i = 0; i < 2; ++i) {
-                        for (String portToMove : portsToMove[i]) {
-                            try {
-                                disconnectPort(portToMove, "system:playback_" + (i + 1));
-                                connectPort(portToMove, "system:playback_" + (i + 3));
-                                connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i));
-                            } catch (RuntimeException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-                };
-                graphCheckTask.set(r);
-                pool.schedule(r, 100, MILLISECONDS);
-            }
-            System.out.println("---");
+            ScheduledFuture<?> oldTask = graphCheckTask.getAndSet(null);
+            if (oldTask != null) oldTask.cancel(false);
+            ScheduledFuture<?> scheduledFuture = pool.schedule(this::checkPorts, 200, MILLISECONDS);
+            graphCheckTask.set(scheduledFuture);
         });
+
         String[] ports = jacki.getPorts(jack, null, null, null);
         synchronized (connectedPorts) {
             for (String port : ports) {
@@ -152,30 +125,125 @@ public class Patchbay {
         return this;
     }
 
+    private void checkPorts() {
+        synchronized (connectedPorts) {
+            try {
+                System.out.println("Checking ports.." + " " + Thread.currentThread());
+                Map<String, Set<String>> cp;
+                cp = Collections.unmodifiableMap(connectedPorts);
+                for (Entry<String, Set<String>> connectedPort : cp.entrySet())         {
+                    if (!connectedPort.getValue().isEmpty()) {
+                        System.out.printf("%54s <-> %s\n", connectedPort.getKey(), connectedPort.getValue());
+                    }
+                }
+
+                System.out.println("* Making sure normal outputs are set up correctly");
+                for (int ii = 0; ii < 2; ++ii) {
+                    final int i = ii;
+                    Stream.concat(
+                            cp.get("system:playback_" + (i + 1)).stream(),
+                            cp.get("system:playback_" + (i + 3)).stream()
+                    )
+                            .filter((port2) -> !port2.startsWith("C* Eq10X2 - 10-band equalizer:Out "))
+                            .collect(toList())
+                            .forEach(portToMove -> {
+                                try {
+                                    disconnectPort(portToMove, "system:playback_" + (i + 1));
+                                    connectPort(portToMove, "system:playback_" + (i + 3));
+                                    connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i));
+                                    connectPort(portToMove, "jaaa:in_" + (i + 1));
+                                } catch (RuntimeException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                }
+
+                System.out.println("* Cleaning equalizer outputs");
+                for (int ii = 0; ii < 2; ++ii) {
+                    final int i = ii;
+                    String src = "C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i);
+                    cp.getOrDefault(src, emptySet()).stream()
+                            .filter(dst -> !dst.equals("system:playback_" + (i + 1))
+                                    && !dst.equals("M:in" + (i + 1)))
+                            .collect(toList())
+                            .forEach(dst -> disconnectPort(src, dst));
+                }
+
+                System.out.println("* Cleaning jackmeter inputs");
+                for (int ii = 0; ii < 2; ++ii) {
+                    final int i = ii;
+                    String dst = "M:in" + (i + 1);
+                    cp.getOrDefault(dst, emptySet()).stream()
+                            .filter(src -> !src.equals("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i)))
+                            .collect(toList())
+                            .forEach(src -> disconnectPort(src, dst));
+                }
+
+                System.out.println("* Make sure equalizer outputs are connected properly");
+                for (int i = 0; i < 2; ++i) {
+                    try {
+                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + (i + 1));
+                    } catch (RuntimeException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                System.out.println("/Ports checked");
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+
     private void connectPort(String port1, String port2) {
-        boolean is;
+        boolean is, has;
         synchronized (connectedPorts) {
             is = isConnected(port1, port2);
+            has = connectedPorts.containsKey(port1) && connectedPorts.containsKey(port2);
         }
         if (!is) {
-            try {
-                jacki.connect(jack, port1, port2);
-            } catch (JackException e) {
-                throw new RuntimeException("Error connecting '" + port1 + "' and '" + port2 + "'");
+            if (has) {
+                try {
+                    System.out.println("Connecting '" + port1 + "' to '" + port2 + "'");
+                    jacki.connect(jack, port1, port2);
+                    synchronized (connectedPorts) {
+                        connectedPorts.get(port1).add(port2);
+                        connectedPorts.get(port2).add(port1);
+                    }
+                } catch (JackException e) {
+                    throw new RuntimeException("Error connecting '" + port1 + "' and '" + port2 + "'", e);
+                }
+            } else {
+                System.out.println("NOT Connecting '" + port1 + "' to '" + port2 + "' due to missing port(s)");
             }
         }
     }
 
     private void disconnectPort(String port1, String port2) {
-        boolean is;
+        boolean is, has;
         synchronized (connectedPorts) {
             is = isConnected(port1, port2);
+            has = connectedPorts.containsKey(port1) && connectedPorts.containsKey(port2);
         }
         if (is) {
-            try {
-                jacki.disconnect(jack, port1, port2);
-            } catch (JackException e) {
-                throw new RuntimeException("Error disconnecting '" + port1 + "' and '" + port2 + "'");
+            if (has) {
+                try {
+                    System.out.println("Discnnecting '" + port1 + "' from '" + port2 + "'");
+                    jacki.disconnect(jack, port1, port2);
+                    synchronized (connectedPorts) {
+                        connectedPorts.get(port1).remove(port2);
+                        connectedPorts.get(port2).remove(port1);
+                    }
+                } catch (JackException e) {
+                    throw new RuntimeException("Error disconnecting '" + port1 + "' and '" + port2 + "'", e);
+                }
+            } else {
+                System.out.println("NOT Disconnecting '" + port1 + "' from '" + port2 + "' due to missing port(s)");
             }
         }
     }
