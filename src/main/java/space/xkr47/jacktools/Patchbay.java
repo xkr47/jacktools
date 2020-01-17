@@ -128,7 +128,7 @@ public class Patchbay {
     private void checkPorts() {
         synchronized (connectedPorts) {
             try {
-                System.out.println("Checking ports.." + " " + Thread.currentThread());
+                System.out.println("Checking ports..");
                 Map<String, Set<String>> cp;
                 cp = Collections.unmodifiableMap(connectedPorts);
                 for (Entry<String, Set<String>> connectedPort : cp.entrySet())         {
@@ -149,9 +149,9 @@ public class Patchbay {
                             .forEach(portToMove -> {
                                 try {
                                     disconnectPort(portToMove, "system:playback_" + (i + 1));
-                                    connectPort(portToMove, "system:playback_" + (i + 3));
-                                    connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i));
-                                    connectPort(portToMove, "jaaa:in_" + (i + 1));
+                                    connectPort(portToMove, "system:playback_" + (i + 3), true);
+                                    connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
+                                    connectPort(portToMove, "jaaa:in_" + (i + 1), false);
                                 } catch (RuntimeException e) {
                                     e.printStackTrace();
                                 }
@@ -182,7 +182,7 @@ public class Patchbay {
                 System.out.println("* Make sure equalizer outputs are connected properly");
                 for (int i = 0; i < 2; ++i) {
                     try {
-                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + (i + 1));
+                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
@@ -200,7 +200,7 @@ public class Patchbay {
         }
     }
 
-    private void connectPort(String port1, String port2) {
+    private void connectPort(String port1, String port2, boolean complainOnFailure) {
         boolean is, has;
         synchronized (connectedPorts) {
             is = isConnected(port1, port2);
@@ -219,7 +219,9 @@ public class Patchbay {
                     throw new RuntimeException("Error connecting '" + port1 + "' and '" + port2 + "'", e);
                 }
             } else {
-                System.out.println("NOT Connecting '" + port1 + "' to '" + port2 + "' due to missing port(s)");
+                if (complainOnFailure) {
+                    System.out.println("NOT Connecting '" + port1 + "' to '" + port2 + "' due to missing port(s)");
+                }
             }
         }
     }
