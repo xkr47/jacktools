@@ -15,12 +15,14 @@ import static java.util.stream.Collectors.toList;
 
 public class Patchbay {
 
+    static final Patchbay patchbay = new Patchbay();
+
     /**
      * This is a simple JACK client that disconnects ports that should not be connected and connects ports that should..
      * My own patchbay that is..
      */
     public static void main(String[] args) throws Exception {
-        new Patchbay().init().loop();
+        patchbay.init().loop();
     }
 
     final JackClient jack;
@@ -29,15 +31,15 @@ public class Patchbay {
     final ScheduledThreadPoolExecutor pool = new ScheduledThreadPoolExecutor(1);
     final AtomicReference<ScheduledFuture<?>> graphCheckTask = new AtomicReference<>();
 
-    Patchbay() throws JackException {
+    Patchbay() {
         EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer);
         EnumSet<JackStatus> status = EnumSet.noneOf(JackStatus.class);
-        jacki = Jack.getInstance();
         try {
-            jack = jacki.openClient("lol", options, status);
-        } catch (JackException ex) {
+            jacki = Jack.getInstance();
+            jack = jacki.openClient("xkr47.patchbay", options, status);
+        } catch (Exception ex) {
             System.out.println("ERROR : Status : " + status);
-            throw ex;
+            throw new RuntimeException("Init failed", ex);
         }
     }
 
