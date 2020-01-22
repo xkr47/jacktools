@@ -139,6 +139,8 @@ public class Patchbay {
                     }
                 }
 
+                boolean hasEqualizer = connectedPorts.containsKey("C* Eq10X2 - 10-band equalizer:In Left");
+
                 System.out.println("* Making sure normal outputs are set up correctly");
                 for (int ii = 0; ii < 2; ++ii) {
                     final int i = ii;
@@ -154,6 +156,9 @@ public class Patchbay {
                                     connectPort(portToMove, "system:playback_" + (i + 3), true);
                                     connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
                                     connectPort(portToMove, "jaaa:in_" + (i + 1), false);
+                                    if (!hasEqualizer) {
+                                        connectPort(portToMove, "M:in" + (i + 1), false);
+                                    }
                                 } catch (RuntimeException e) {
                                     e.printStackTrace();
                                 }
@@ -171,14 +176,16 @@ public class Patchbay {
                             .forEach(dst -> disconnectPort(src, dst));
                 }
 
-                System.out.println("* Cleaning jackmeter inputs");
-                for (int ii = 0; ii < 2; ++ii) {
-                    final int i = ii;
-                    String dst = "M:in" + (i + 1);
-                    cp.getOrDefault(dst, emptySet()).stream()
-                            .filter(src -> !src.equals("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i)))
-                            .collect(toList())
-                            .forEach(src -> disconnectPort(src, dst));
+                if (hasEqualizer) {
+                    System.out.println("* Cleaning jackmeter inputs");
+                    for (int ii = 0; ii < 2; ++ii) {
+                        final int i = ii;
+                        String dst = "M:in" + (i + 1);
+                        cp.getOrDefault(dst, emptySet()).stream()
+                                .filter(src -> !src.equals("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i)))
+                                .collect(toList())
+                                .forEach(src -> disconnectPort(src, dst));
+                    }
                 }
 
                 System.out.println("* Make sure equalizer outputs are connected properly");
