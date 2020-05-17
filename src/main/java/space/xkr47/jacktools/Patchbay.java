@@ -94,11 +94,11 @@ public class Patchbay {
         jack.setClientRegistrationCallback(new JackClientRegistrationCallback() {
             @Override
             public void clientRegistered(JackClient invokingClient, String clientName) {
-                System.out.println("Client regixtered: " + clientName);
+                System.out.println("Client registered: " + clientName);
             }
             @Override
             public void clientUnregistered(JackClient invokingClient, String clientName) {
-                System.out.println("Client unregixtered: " + clientName);
+                System.out.println("Client unregistered: " + clientName);
             }
         });
         jack.setGraphOrderCallback(invokingClient -> {
