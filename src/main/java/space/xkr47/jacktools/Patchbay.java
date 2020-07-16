@@ -157,7 +157,7 @@ public class Patchbay {
                                     connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
                                     connectPort(portToMove, "jaaa:in_" + (i + 1), false);
                                     if (!hasEqualizer) {
-                                        connectPort(portToMove, "M:in" + (i + 1), false);
+                                        connectPort(portToMove, "M:in" + mapSpeakerOutput(i + 1), false);
                                     }
                                 } catch (RuntimeException e) {
                                     e.printStackTrace();
@@ -170,8 +170,8 @@ public class Patchbay {
                     final int i = ii;
                     String src = "C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i);
                     cp.getOrDefault(src, emptySet()).stream()
-                            .filter(dst -> !dst.equals("system:playback_" + (i + 1))
-                                    && !dst.equals("M:in" + (i + 1)))
+                            .filter(dst -> !dst.equals("system:playback_" + mapSpeakerOutput(i + 1))
+                                    && !dst.equals("M:in" + mapSpeakerOutput(i + 1)))
                             .collect(toList())
                             .forEach(dst -> disconnectPort(src, dst));
                 }
@@ -180,9 +180,9 @@ public class Patchbay {
                     System.out.println("* Cleaning jackmeter inputs");
                     for (int ii = 0; ii < 2; ++ii) {
                         final int i = ii;
-                        String dst = "M:in" + (i + 1);
+                        String dst = "M:in" + mapSpeakerOutput(i + 1);
                         cp.getOrDefault(dst, emptySet()).stream()
-                                .filter(src -> !src.equals("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i)))
+                                .filter(src -> !src.startsWith("C* Eq10X2 - 10-band equalizer:Out"))
                                 .collect(toList())
                                 .forEach(src -> disconnectPort(src, dst));
                     }
@@ -191,7 +191,7 @@ public class Patchbay {
                 System.out.println("* Make sure equalizer outputs are connected properly");
                 for (int i = 0; i < 2; ++i) {
                     try {
-                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + (i + 1), true);
+                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + mapSpeakerOutput(i + 1), true);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
@@ -261,6 +261,12 @@ public class Patchbay {
 
     private static String stereoPort(int i) {
         return i == 0 ? "Left": "Right";
+    }
+
+    private int mapSpeakerOutput(int i) {
+        // return i; // both speakers working
+        return 1; // right speaker broken
+        // return 2; // left spekaer broken
     }
 
     private void loop() throws InterruptedException {
