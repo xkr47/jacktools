@@ -144,10 +144,10 @@ public class Patchbay {
                 System.out.println("* Making sure normal outputs are set up correctly");
                 for (int ii = 0; ii < 2; ++ii) {
                     final int i = ii;
-                    Stream.concat(
-                            cp.get("system:playback_" + (i + 1)).stream(),
-                            cp.get("system:playback_" + (i + 3)).stream()
-                    )
+                    //Stream.concat(
+                            cp.get("system:playback_" + (i + 1)).stream()//,
+                            //cp.get("system:playback_" + (i + 3)).stream()
+                    //)
                             .filter((port2) -> !port2.startsWith("C* Eq10X2 - 10-band equalizer:Out "))
                             .collect(toList())
                             .forEach(portToMove -> {
