@@ -32,7 +32,7 @@ public class Patchbay {
     final AtomicReference<ScheduledFuture<?>> graphCheckTask = new AtomicReference<>();
 
     Patchbay() {
-        EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer);
+        EnumSet<JackOptions> options = EnumSet.of(JackOptions.JackNoStartServer, JackOptions.JackUseExactName);
         EnumSet<JackStatus> status = EnumSet.noneOf(JackStatus.class);
         try {
             jacki = Jack.getInstance();
