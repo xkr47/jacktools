@@ -7,15 +7,18 @@ import java.util.Map.Entry;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 public class Patchbay {
 
     static final Patchbay patchbay = new Patchbay();
+
+    static final String VU_METER = "VU meter";
 
     /**
      * This is a simple JACK client that disconnects ports that should not be connected and connects ports that should..
@@ -171,7 +174,9 @@ public class Patchbay {
                     String src = "C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i);
                     cp.getOrDefault(src, emptySet()).stream()
                             .filter(dst -> !dst.equals("system:playback_" + mapSpeakerOutput(i + 1))
-                                    && !dst.equals("M:in" + mapSpeakerOutput(i + 1)))
+                                    && !dst.equals("M:in" + mapSpeakerOutput(i + 1))
+                                    && !dst.equals(VU_METER + ":in_" + mapSpeakerOutput(i + 1))
+                            )
                             .collect(toList())
                             .forEach(dst -> disconnectPort(src, dst));
                 }
@@ -185,6 +190,25 @@ public class Patchbay {
                                 .filter(src -> !src.startsWith("C* Eq10X2 - 10-band equalizer:Out"))
                                 .collect(toList())
                                 .forEach(src -> disconnectPort(src, dst));
+                    }
+                }
+
+                if (cp.containsKey(VU_METER + ":in_1")) {
+                    System.out.println("* Syncing VU meter inputs");
+                    for (int ii = 0; ii < 4; ++ii) {
+                        final int i = ii;
+                        String vuPort = VU_METER + ":in_" + (i + 1);
+                        if (!cp.containsKey(vuPort)) continue;
+                        Set<String> expected = cp.get("system:playback_" + (i + 1)).stream()
+                                .filter(dst -> !dst.startsWith(VU_METER + ":"))
+                                .collect(toSet());
+                        Set<String> actual = ofNullable(cp.get(vuPort)).orElseGet(Collections::emptySet);
+                        actual.stream()
+                                .filter(port -> !expected.contains(port))
+                                .forEach(port -> disconnectPort(port, vuPort));
+                        expected.stream()
+                                .filter(port -> !actual.contains(port))
+                                .forEach(port -> connectPort(port, vuPort, true));
                     }
                 }
 
