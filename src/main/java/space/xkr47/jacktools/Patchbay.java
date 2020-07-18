@@ -139,7 +139,7 @@ public class Patchbay {
                     }
                 }
 
-                boolean hasEqualizer = connectedPorts.containsKey("C* Eq10X2 - 10-band equalizer:In Left");
+                boolean hasEqualizer = cp.containsKey("C* Eq10X2 - 10-band equalizer:In Left");
 
                 System.out.println("* Making sure normal outputs are set up correctly");
                 for (int ii = 0; ii < 2; ++ii) {
