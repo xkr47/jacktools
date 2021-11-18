@@ -142,43 +142,54 @@ public class Patchbay {
                     }
                 }
 
-                boolean hasEqualizer = cp.containsKey("C* Eq10X2 - 10-band equalizer:In Left");
-
-                System.out.println("* Making sure normal outputs are set up correctly");
-                for (int ii = 0; ii < 2; ++ii) {
-                    final int i = ii;
-                    //Stream.concat(
-                            cp.get("system:playback_" + (i + 1)).stream()//,
-                            //cp.get("system:playback_" + (i + 3)).stream()
-                    //)
-                            .filter((port2) -> !port2.startsWith("C* Eq10X2 - 10-band equalizer:Out "))
-                            .collect(toList())
-                            .forEach(portToMove -> {
-                                try {
-                                    disconnectPort(portToMove, "system:playback_" + (i + 1));
-                                    connectPort(portToMove, "system:playback_" + (i + 3), true);
-                                    connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
-                                    connectPort(portToMove, "jaaa:in_" + (i + 1), false);
-                                    if (!hasEqualizer) {
-                                        connectPort(portToMove, "M:in" + mapSpeakerOutput(i + 1), false);
-                                    }
-                                } catch (RuntimeException e) {
-                                    e.printStackTrace();
-                                }
-                            });
+                if (!cp.containsKey("system:playback_1")) {
+                    System.out.println("* System ports missing, skipping checks..");
+                    return;
                 }
 
-                System.out.println("* Cleaning equalizer outputs");
-                for (int ii = 0; ii < 2; ++ii) {
-                    final int i = ii;
-                    String src = "C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i);
-                    cp.getOrDefault(src, emptySet()).stream()
-                            .filter(dst -> !dst.equals("system:playback_" + mapSpeakerOutput(i + 1))
-                                    && !dst.equals("M:in" + mapSpeakerOutput(i + 1))
-                                    && !dst.equals(VU_METER + ":in_" + mapSpeakerOutput(i + 1))
-                            )
-                            .collect(toList())
-                            .forEach(dst -> disconnectPort(src, dst));
+                boolean hasEqualizer = cp.containsKey("C* Eq10X2 - 10-band equalizer:In Left");
+
+                if (hasEqualizer) {
+                    System.out.println("* Route ports to system 1/2 to 3/4 + equalizer");
+                    for (int ii = 0; ii < 2; ++ii) {
+                        final int i = ii;
+                        //Stream.concat(
+                        cp.get("system:playback_" + (i + 1)).stream()//,
+                                //cp.get("system:playback_" + (i + 3)).stream()
+                                //)
+                                .filter((port2) -> !port2.startsWith("C* Eq10X2 - 10-band equalizer:Out "))
+                                .collect(toList())
+                                .forEach(portToMove -> {
+                                    try {
+                                        disconnectPort(portToMove, "system:playback_" + (i + 1));
+                                        connectPort(portToMove, "system:playback_" + (i + 3), true);
+                                        if (hasEqualizer) {
+                                            connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
+                                        }
+                                        connectPort(portToMove, "jaaa:in_" + (i + 1), false);
+                                        if (!hasEqualizer) {
+                                            connectPort(portToMove, "M:in" + mapSpeakerOutput(i + 1), false);
+                                        }
+                                    } catch (RuntimeException e) {
+                                        e.printStackTrace();
+                                    }
+                                });
+                    }
+                }
+
+                if (hasEqualizer) {
+                    System.out.println("* Cleaning equalizer outputs");
+                    for (int ii = 0; ii < 2; ++ii) {
+                        final int i = ii;
+                        String src = "C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i);
+                        cp.getOrDefault(src, emptySet()).stream()
+                                .filter(dst -> !dst.equals("system:playback_" + mapSpeakerOutput(i + 1))
+                                        && !dst.equals("M:in" + mapSpeakerOutput(i + 1))
+                                        && !dst.equals(VU_METER + ":in_" + mapSpeakerOutput(i + 1))
+                                )
+                                .collect(toList())
+                                .forEach(dst -> disconnectPort(src, dst));
+                    }
                 }
 
                 if (hasEqualizer) {
@@ -212,12 +223,14 @@ public class Patchbay {
                     }
                 }
 
-                System.out.println("* Make sure equalizer outputs are connected properly");
-                for (int i = 0; i < 2; ++i) {
-                    try {
-                        connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + mapSpeakerOutput(i + 1), true);
-                    } catch (RuntimeException e) {
-                        e.printStackTrace();
+                if (hasEqualizer) {
+                    System.out.println("* Make sure equalizer outputs are connected properly");
+                    for (int i = 0; i < 2; ++i) {
+                        try {
+                            connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + mapSpeakerOutput(i + 1), true);
+                        } catch (RuntimeException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
 
