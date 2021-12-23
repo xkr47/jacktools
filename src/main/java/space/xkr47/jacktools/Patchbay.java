@@ -213,7 +213,10 @@ public class Patchbay {
                         Set<String> expected = cp.get("system:playback_" + (i + 1)).stream()
                                 .filter(dst -> !dst.startsWith(VU_METER + ":"))
                                 .collect(toSet());
-                        Set<String> actual = ofNullable(cp.get(vuPort)).orElseGet(Collections::emptySet);
+                        //noinspection unchecked
+                        Set<String> actual = ofNullable(cp.get(vuPort))
+                                .map(x -> (Set<String>)((HashSet<String>)x).clone())
+                                .orElseGet(Collections::emptySet);
                         actual.stream()
                                 .filter(port -> !expected.contains(port))
                                 .forEach(port -> disconnectPort(port, vuPort));
@@ -231,6 +234,16 @@ public class Patchbay {
                         } catch (RuntimeException e) {
                             e.printStackTrace();
                         }
+                    }
+                }
+
+                System.out.println("* Connect mpv via Piano gain");
+                for (int i = 0; i < 2; ++i) {
+                    try {
+                        disconnectPort("mpv:out_" + i, "system:playback_" + (i + 1));
+                        connectPort("mpv:out_" + i, "Piano gain:In " + (i + 1), true);
+                    } catch (RuntimeException e) {
+                        e.printStackTrace();
                     }
                 }
 
