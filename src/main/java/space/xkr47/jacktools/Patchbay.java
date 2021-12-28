@@ -237,11 +237,13 @@ public class Patchbay {
                     }
                 }
 
-                System.out.println("* Connect mpv via Piano gain");
+                System.out.println("* Connect mpv & xine via Video gain");
                 for (int i = 0; i < 2; ++i) {
                     try {
                         disconnectPort("mpv:out_" + i, "system:playback_" + (i + 1));
-                        connectPort("mpv:out_" + i, "Piano gain:In " + (i + 1), true);
+                        disconnectPort("xine:out_" + i, "system:playback_" + (i + 1));
+                        connectPort("mpv:out_" + i, "Video gain:In " + (i + 1), false);
+                        connectPort("xine:out_" + i, "Video gain:In " + (i + 1), false);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
