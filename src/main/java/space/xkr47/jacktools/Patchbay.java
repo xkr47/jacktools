@@ -249,6 +249,20 @@ public class Patchbay {
                     }
                 }
 
+                System.out.println("* Piano to system only when Ardour is not running");
+                boolean hasArdour = cp.containsKey("ardour:Audio/audio_in 1");
+                for (int i = 0; i < 2; ++i) {
+                    try {
+                        if (hasArdour) {
+                            disconnectPort("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1));
+                        } else {
+                            connectPort("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
+                        }
+                    } catch (RuntimeException e) {
+                        e.printStackTrace();
+                    }
+                }
+
                 System.out.println("* Connect zynaddsubfx to correct ports");
                 //connectPort("zynaddsubfx:midi_input", cp.containsKey("system:midi_capture_2") ? "system:midi_capture_1" : "system:midi_capture_1", false);
                 for (int i = 0; i < 2; ++i) {
