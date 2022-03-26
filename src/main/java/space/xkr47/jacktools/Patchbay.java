@@ -177,6 +177,17 @@ public class Patchbay {
                     }
                 }
 
+                System.out.println("* Muba links");
+                for (int ii = 0; ii < 2; ++ii) {
+                    final int i = ii;
+                    String src = "PulseAudio JACK Sink:front-" + stereoPort(i).toLowerCase(Locale.ROOT);
+                    connectPort(src, "Gain 2x2:In " + (i + 1), true);
+                    if (!hasEqualizer) {
+                        connectPort(src, VU_METER + ":in_" + (i + 3), true);
+                    }
+                }
+
+
                 if (hasEqualizer) {
                     System.out.println("* Cleaning equalizer outputs");
                     for (int ii = 0; ii < 2; ++ii) {
@@ -206,7 +217,7 @@ public class Patchbay {
 
                 if (cp.containsKey(VU_METER + ":in_1")) {
                     System.out.println("* Syncing VU meter inputs");
-                    for (int ii = 0; ii < 4; ++ii) {
+                    for (int ii = 0; ii < (hasEqualizer ? 4 : 2); ++ii) {
                         final int i = ii;
                         String vuPort = VU_METER + ":in_" + (i + 1);
                         if (!cp.containsKey(vuPort)) continue;
