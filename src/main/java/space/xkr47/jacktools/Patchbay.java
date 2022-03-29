@@ -89,8 +89,14 @@ public class Patchbay {
             public void portsDisconnected(JackClient client, String portName1, String portName2) {
                 synchronized (connectedPorts) {
                     System.out.println("Disconnected " + portName1 + " and " + portName2);
-                    connectedPorts.get(portName1).remove(portName2);
-                    connectedPorts.get(portName2).remove(portName1);
+                    Set<String> port1 = connectedPorts.get(portName1);
+                    Set<String> port2 = connectedPorts.get(portName2);
+                    if (port1 != null) {
+                        port1.remove(portName2);
+                    }
+                    if (port2 != null) {
+                        port2.remove(portName1);
+                    }
                 }
             }
         });
