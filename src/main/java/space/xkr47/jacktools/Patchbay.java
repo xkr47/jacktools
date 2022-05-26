@@ -280,11 +280,14 @@ public class Patchbay {
                     }
                 }
 
-                System.out.println("* Connect zynaddsubfx to correct ports");
+                System.out.println("* Connect zynaddsubfx to correct ports unless already connected");
                 //connectPort("zynaddsubfx:midi_input", cp.containsKey("system:midi_capture_2") ? "system:midi_capture_1" : "system:midi_capture_1", false);
                 for (int i = 0; i < 2; ++i) {
                     try {
-                        connectPort("zynaddsubfx:out_" + (i + 1), "system:playback_" + (i + 1), false);
+                        String srcport = "zynaddsubfx:out_" + (i + 1);
+                        if (cp.getOrDefault(srcport, emptySet()).isEmpty()) {
+                            connectPort(srcport, "system:playback_" + (i + 1), false);
+                        }
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
