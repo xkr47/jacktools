@@ -1,16 +1,32 @@
 package space.xkr47.jacktools;
 
-import org.jaudiolibs.jnajack.*;
+import org.jaudiolibs.jnajack.Jack;
+import org.jaudiolibs.jnajack.JackClient;
+import org.jaudiolibs.jnajack.JackClientRegistrationCallback;
+import org.jaudiolibs.jnajack.JackException;
+import org.jaudiolibs.jnajack.JackOptions;
+import org.jaudiolibs.jnajack.JackPortConnectCallback;
+import org.jaudiolibs.jnajack.JackPortRegistrationCallback;
+import org.jaudiolibs.jnajack.JackStatus;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.regex.Pattern.compile;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
@@ -19,6 +35,8 @@ public class Patchbay {
     static final Patchbay patchbay = new Patchbay();
 
     static final String VU_METER = "VU meter";
+
+    static final Pattern MIDI_THROUGH_PLAYBACK_RE = compile("\\Qa2j:Midi Through [\\E\\d+\\Q] (playback): Midi Through Port-0");
 
     /**
      * This is a simple JACK client that disconnects ports that should not be connected and connects ports that should..
@@ -286,8 +304,27 @@ public class Patchbay {
                     }
                 }
 
+                System.out.println("* Piano midi via yamaha-mapper");
+                boolean hasYamahaMapper = cp.containsKey("xkr-yamaha-mapper:in");
+                String origMidiSrc = "system:midi_capture_1";
+                String midiSrc = hasYamahaMapper ? "xkr-yamaha-mapper:out" : origMidiSrc;
+                if (hasYamahaMapper) {
+                    try {
+                        connectPort("system:midi_capture_1", "xkr-yamaha-mapper:in", true);
+                        List<String> portToMove = cp.get(origMidiSrc).stream()
+                                .filter(dst -> !"xkr-yamaha-mapper:in".equals(dst))
+                                .collect(toList());
+                        portToMove.forEach(dst -> {
+                            disconnectPort(origMidiSrc, dst);
+                            connectPort(midiSrc, dst, true);
+                        });
+                    } catch (RuntimeException e) {
+                        e.printStackTrace();
+                    }
+                }
+
                 System.out.println("* Connect zynaddsubfx to correct ports unless already connected");
-                //connectPort("zynaddsubfx:midi_input", cp.containsKey("system:midi_capture_2") ? "system:midi_capture_1" : "system:midi_capture_1", false);
+                connectPort(midiSrc, "zynaddsubfx:midi_input", false);
                 for (int i = 0; i < 2; ++i) {
                     try {
                         String srcport = "zynaddsubfx:out_" + (i + 1);
@@ -298,6 +335,11 @@ public class Patchbay {
                         e.printStackTrace();
                     }
                 }
+
+                System.out.println("* Connect midi to midi-through so Helm can read it");
+                cp.keySet().stream()
+                        .filter(port -> MIDI_THROUGH_PLAYBACK_RE.matcher(port).matches())
+                        .forEach(port -> connectPort(midiSrc, port, true));
 
                 System.out.println("/Ports checked");
             } catch (RuntimeException e) {
