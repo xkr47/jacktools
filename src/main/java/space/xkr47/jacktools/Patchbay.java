@@ -186,7 +186,7 @@ public class Patchbay {
                                 .forEach(portToMove -> {
                                     try {
                                         disconnectPort(portToMove, "system:playback_" + (i + 1));
-                                        connectPort(portToMove, "system:playback_" + (i + 3), true);
+                                        connectPortUnlessArdour(portToMove, "system:playback_" + (i + 3), true);
                                         if (hasEqualizer) {
                                             connectPort(portToMove, "C* Eq10X2 - 10-band equalizer:In " + stereoPort(i), true);
                                         }
@@ -205,7 +205,7 @@ public class Patchbay {
                 for (int i = 0; i < 2; ++i) {
                     String src = "PulseAudio JACK Sink:front-" + stereoPort(i).toLowerCase(Locale.ROOT);
                     connectPort(src, "muha gain:In " + (i + 1), true);
-                    connectPort("muha gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
+                    connectPortUnlessArdour("muha gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     if (!hasEqualizer) {
                         connectPort(src, VU_METER + ":in_" + (i + 3), true);
                     }
@@ -213,7 +213,7 @@ public class Patchbay {
 
                 System.out.println("* Non-muba pulseaudio links");
                 for (int i = 0; i < 2; ++i) {
-                    connectPort("PulseAudio JACK Sink Default:front-" + stereoPort(i).toLowerCase(Locale.ROOT), "system:playback_" + (i + 1), true);
+                    connectPortUnlessArdour("PulseAudio JACK Sink Default:front-" + stereoPort(i).toLowerCase(Locale.ROOT), "system:playback_" + (i + 1), true);
                 }
 
                 if (hasEqualizer) {
@@ -269,7 +269,7 @@ public class Patchbay {
                     System.out.println("* Make sure equalizer outputs are connected properly");
                     for (int i = 0; i < 2; ++i) {
                         try {
-                            connectPort("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + mapSpeakerOutput(i + 1), true);
+                            connectPortUnlessArdour("C* Eq10X2 - 10-band equalizer:Out " + stereoPort(i), "system:playback_" + mapSpeakerOutput(i + 1), true);
                         } catch (RuntimeException e) {
                             e.printStackTrace();
                         }
@@ -283,7 +283,7 @@ public class Patchbay {
                         disconnectPort("xine:out_" + i, "system:playback_" + (i + 1));
                         connectPort("mpv:out_" + i, "Video gain:In " + (i + 1), false);
                         connectPort("xine:out_" + i, "Video gain:In " + (i + 1), false);
-                        connectPort("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
+                        connectPortUnlessArdour("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
@@ -297,7 +297,7 @@ public class Patchbay {
                         if (hasArdour) {
                             disconnectPort("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1));
                         } else {
-                            connectPort("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
+                            connectPortUnlessArdour("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                         }
                     } catch (RuntimeException e) {
                         e.printStackTrace();
@@ -328,9 +328,7 @@ public class Patchbay {
                 for (int i = 0; i < 2; ++i) {
                     try {
                         String srcport = "zynaddsubfx:out_" + (i + 1);
-                        if (cp.getOrDefault(srcport, emptySet()).isEmpty()) {
-                            connectPort(srcport, "system:playback_" + (i + 1), false);
-                        }
+                        connectPortUnlessArdour(srcport, "system:playback_" + (i + 1), false);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
@@ -350,6 +348,15 @@ public class Patchbay {
                     ex.printStackTrace();
                 }
             }
+        }
+    }
+
+    private void connectPortUnlessArdour(String port1, String port2, boolean complainOnFailure) {
+        assert Thread.holdsLock(connectedPorts);
+        if (connectedPorts.get(port1).stream().noneMatch(port -> port.startsWith("ardour:"))) {
+            connectPort(port1, port2, complainOnFailure);
+        } else {
+            disconnectPort(port1, port2);
         }
     }
 
