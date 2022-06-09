@@ -9,6 +9,7 @@ import org.jaudiolibs.jnajack.JackPortConnectCallback;
 import org.jaudiolibs.jnajack.JackPortRegistrationCallback;
 import org.jaudiolibs.jnajack.JackStatus;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ScheduledFuture;
@@ -37,6 +39,7 @@ public class Patchbay {
     static final String VU_METER = "VU meter";
 
     static final Pattern MIDI_THROUGH_PLAYBACK_RE = compile("\\Qa2j:Midi Through [\\E\\d+\\Q] (playback): Midi Through Port-0");
+    static final Pattern SEPARATE_MIDI_RE = compile("\\Qa2j:USB Midi [\\E\\d+\\Q] (capture): USB Midi MIDI 1");
 
     /**
      * This is a simple JACK client that disconnects ports that should not be connected and connects ports that should..
@@ -307,15 +310,34 @@ public class Patchbay {
                 System.out.println("* Piano midi via yamaha-mapper");
                 boolean hasYamahaMapper = cp.containsKey("xkr-yamaha-mapper:in");
                 String origMidiSrc = "system:midi_capture_1";
+                Optional<String> separateMidi = cp.keySet().stream()
+                        .filter(dst -> SEPARATE_MIDI_RE.matcher(dst).matches())
+                        .findAny();
+                if (separateMidi.isPresent()) {
+                    String separateMidi2 = separateMidi.get();
+                    try {
+                        List<String> portsToMove = new ArrayList<>(cp.get(origMidiSrc));
+                        String origMidiSrc2 = origMidiSrc;
+                        portsToMove.forEach(dst -> {
+                            disconnectPort(origMidiSrc2, dst);
+                            connectPort(separateMidi2, dst, true);
+                        });
+                    } catch (RuntimeException e) {
+                        e.printStackTrace();
+                    }
+                    origMidiSrc = separateMidi2;
+                }
+
                 String midiSrc = hasYamahaMapper ? "xkr-yamaha-mapper:out" : origMidiSrc;
                 if (hasYamahaMapper) {
                     try {
-                        connectPort("system:midi_capture_1", "xkr-yamaha-mapper:in", true);
-                        List<String> portToMove = cp.get(origMidiSrc).stream()
+                        connectPort(origMidiSrc, "xkr-yamaha-mapper:in", true);
+                        List<String> portsToMove = cp.get(origMidiSrc).stream()
                                 .filter(dst -> !"xkr-yamaha-mapper:in".equals(dst))
                                 .collect(toList());
-                        portToMove.forEach(dst -> {
-                            disconnectPort(origMidiSrc, dst);
+                        String origMidiSrc2 = origMidiSrc;
+                        portsToMove.forEach(dst -> {
+                            disconnectPort(origMidiSrc2, dst);
                             connectPort(midiSrc, dst, true);
                         });
                     } catch (RuntimeException e) {
