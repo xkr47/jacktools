@@ -375,7 +375,7 @@ public class Patchbay {
 
     private void connectPortUnlessArdour(String port1, String port2, boolean complainOnFailure) {
         assert Thread.holdsLock(connectedPorts);
-        if (connectedPorts.get(port1).stream().noneMatch(port -> port.startsWith("ardour:"))) {
+        if (connectedPorts.getOrDefault(port1, emptySet()).stream().noneMatch(port -> port.startsWith("ardour:"))) {
             connectPort(port1, port2, complainOnFailure);
         } else {
             disconnectPort(port1, port2);
