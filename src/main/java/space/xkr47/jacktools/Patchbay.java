@@ -184,15 +184,19 @@ public class Patchbay {
                 }
 
                 System.out.println("* Muba links");
-                for (int ii = 0; ii < 2; ++ii) {
-                    final int i = ii;
+                for (int i = 0; i < 2; ++i) {
                     String src = "PulseAudio JACK Sink:front-" + stereoPort(i).toLowerCase(Locale.ROOT);
-                    connectPort(src, "Gain 2x2:In " + (i + 1), true);
+                    connectPort(src, "muha gain:In " + (i + 1), true);
+                    connectPort("muha gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     if (!hasEqualizer) {
                         connectPort(src, VU_METER + ":in_" + (i + 3), true);
                     }
                 }
 
+                System.out.println("* Non-muba pulseaudio links");
+                for (int i = 0; i < 2; ++i) {
+                    connectPort("PulseAudio JACK Sink Default:front-" + stereoPort(i).toLowerCase(Locale.ROOT), "system:playback_" + (i + 1), true);
+                }
 
                 if (hasEqualizer) {
                     System.out.println("* Cleaning equalizer outputs");
@@ -261,6 +265,7 @@ public class Patchbay {
                         disconnectPort("xine:out_" + i, "system:playback_" + (i + 1));
                         connectPort("mpv:out_" + i, "Video gain:In " + (i + 1), false);
                         connectPort("xine:out_" + i, "Video gain:In " + (i + 1), false);
+                        connectPort("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
@@ -270,6 +275,7 @@ public class Patchbay {
                 boolean hasArdour = cp.containsKey("ardour:Audio/audio_in 1");
                 for (int i = 0; i < 2; ++i) {
                     try {
+                        connectPort("system:capture_" + (i + 5), "Piano gain:In " + (i + 1), true);
                         if (hasArdour) {
                             disconnectPort("Piano gain:Out " + (i + 1), "system:playback_" + (i + 1));
                         } else {
