@@ -236,8 +236,7 @@ public class Patchbay {
 
                 if (hasEqualizer) {
                     System.out.println("* Cleaning jackmeter inputs");
-                    for (int ii = 0; ii < 2; ++ii) {
-                        final int i = ii;
+                    for (int i = 0; i < 2; ++i) {
                         String dst = "M:in" + mapSpeakerOutput(i + 1);
                         cp.getOrDefault(dst, emptySet()).stream()
                                 .filter(src -> !src.startsWith("C* Eq10X2 - 10-band equalizer:Out"))
@@ -245,7 +244,6 @@ public class Patchbay {
                                 .forEach(src -> disconnectPort(src, dst));
                     }
                 }
-
 
                 if (hasEqualizer) {
                     System.out.println("* Make sure equalizer outputs are connected properly");
@@ -445,6 +443,7 @@ public class Patchbay {
         return i == 0 ? "Left": "Right";
     }
 
+    @SuppressWarnings("unused")
     private int mapSpeakerOutput(int i) {
         // return i; // both speakers working
         return 1; // right speaker broken
