@@ -246,27 +246,6 @@ public class Patchbay {
                     }
                 }
 
-                if (cp.containsKey(VU_METER + ":in_1")) {
-                    System.out.println("* Syncing VU meter inputs");
-                    for (int ii = 0; ii < (hasEqualizer ? 4 : 2); ++ii) {
-                        final int i = ii;
-                        String vuPort = VU_METER + ":in_" + (i + 1);
-                        if (!cp.containsKey(vuPort)) continue;
-                        Set<String> expected = cp.get("system:playback_" + (i + 1)).stream()
-                                .filter(dst -> !dst.startsWith(VU_METER + ":"))
-                                .collect(toSet());
-                        //noinspection unchecked
-                        Set<String> actual = ofNullable(cp.get(vuPort))
-                                .map(x -> (Set<String>)((HashSet<String>)x).clone())
-                                .orElseGet(Collections::emptySet);
-                        actual.stream()
-                                .filter(port -> !expected.contains(port))
-                                .forEach(port -> disconnectPort(port, vuPort));
-                        expected.stream()
-                                .filter(port -> !actual.contains(port))
-                                .forEach(port -> connectPort(port, vuPort, true));
-                    }
-                }
 
                 if (hasEqualizer) {
                     System.out.println("* Make sure equalizer outputs are connected properly");
@@ -369,6 +348,27 @@ public class Patchbay {
                 cp.keySet().stream()
                         .filter(port -> MIDI_THROUGH_PLAYBACK_RE.matcher(port).matches())
                         .forEach(port -> connectPort(midiSrc, port, true));
+
+                if (cp.containsKey(VU_METER + ":in_1")) {
+                    System.out.println("* Syncing VU meter inputs");
+                    for (int i = 0; i < (hasEqualizer ? 4 : 2); ++i) {
+                        String vuPort = VU_METER + ":in_" + (i + 1);
+                        if (!cp.containsKey(vuPort)) continue;
+                        Set<String> expected = cp.get("system:playback_" + (i + 1)).stream()
+                                .filter(dst -> !dst.startsWith(VU_METER + ":"))
+                                .collect(toSet());
+                        //noinspection unchecked
+                        Set<String> actual = ofNullable(cp.get(vuPort))
+                                .map(x -> (Set<String>)((HashSet<String>)x).clone())
+                                .orElseGet(Collections::emptySet);
+                        actual.stream()
+                                .filter(port -> !expected.contains(port))
+                                .forEach(port -> disconnectPort(port, vuPort));
+                        expected.stream()
+                                .filter(port -> !actual.contains(port))
+                                .forEach(port -> connectPort(port, vuPort, true));
+                    }
+                }
 
                 System.out.println("/Ports checked");
             } catch (RuntimeException e) {
