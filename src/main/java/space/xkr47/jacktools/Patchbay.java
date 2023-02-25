@@ -283,8 +283,14 @@ public class Patchbay {
                 for (int i = 0; i < 2; ++i) {
                     try {
                         disconnectPort("mpv:out_" + i, "system:playback_" + (i + 1));
+                        for (int m = 1; m <= 6 ; ++m) {
+                            disconnectPort("mpv-0" + m + ":out_" + i, "system:playback_" + (i + 1));
+                        }
                         disconnectPort("xine:out_" + i, "system:playback_" + (i + 1));
                         connectPort("mpv:out_" + i, "Video gain:In " + (i + 1), false);
+                        for (int m = 1; m <= 6 ; ++m) {
+                            connectPort("mpv-0" + m + ":out_" + i, "Video gain:In " + (i + 1), false);
+                        }
                         connectPort("xine:out_" + i, "Video gain:In " + (i + 1), false);
                         connectPortUnlessArdour("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
