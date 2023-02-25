@@ -9,6 +9,7 @@ import org.jaudiolibs.jnajack.JackPortConnectCallback;
 import org.jaudiolibs.jnajack.JackPortRegistrationCallback;
 import org.jaudiolibs.jnajack.JackStatus;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -23,6 +24,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
@@ -31,6 +33,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.regex.Pattern.compile;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.empty;
+import static java.util.stream.Stream.of;
 
 public class Patchbay {
 
@@ -40,6 +44,7 @@ public class Patchbay {
 
     static final Pattern MIDI_THROUGH_PLAYBACK_RE = compile("\\Qa2j:Midi Through [\\E\\d+\\Q] (playback): Midi Through Port-0");
     static final Pattern SEPARATE_MIDI_RE = compile("\\Qa2j:USB Midi [\\E\\d+\\Q] (capture): USB Midi MIDI 1");
+    static final Pattern MEDIA_PORT_OUT0_RE = compile("^(mpv|mpv-\\d+|xine|MPlayer[^:]*+):");
 
     /**
      * This is a simple JACK client that disconnects ports that should not be connected and connects ports that should..
@@ -256,19 +261,27 @@ public class Patchbay {
                     }
                 }
 
-                System.out.println("* Connect mpv & xine via Video gain");
-                for (int i = 0; i < 2; ++i) {
+                System.out.println("* Connect mp, mpv & xine via Video gain");
+                for (int ii = 0; ii < 2; ++ii) {
                     try {
-                        disconnectPort("mpv:out_" + i, "system:playback_" + (i + 1));
-                        for (int m = 1; m <= 6 ; ++m) {
-                            disconnectPort("mpv-0" + m + ":out_" + i, "system:playback_" + (i + 1));
-                        }
-                        disconnectPort("xine:out_" + i, "system:playback_" + (i + 1));
-                        connectPort("mpv:out_" + i, "Video gain:In " + (i + 1), false);
-                        for (int m = 1; m <= 6 ; ++m) {
-                            connectPort("mpv-0" + m + ":out_" + i, "Video gain:In " + (i + 1), false);
-                        }
-                        connectPort("xine:out_" + i, "Video gain:In " + (i + 1), false);
+                        final int i = ii;
+                        new ArrayList<>(cp.get("system:playback_" + (i + 1))).stream()
+                                .flatMap(port -> {
+                                    Matcher m = MEDIA_PORT_OUT0_RE.matcher(port);
+                                    if (m.find()) {
+                                        String portBase = m.group(1);
+                                        return of(new SimpleImmutableEntry<>(portBase, 0));
+                                    } else {
+                                        return empty();
+                                    }
+                                })
+                                .forEach(e -> {
+                                    String portBase = e.getKey();
+                                    int off = e.getValue();
+                                    String port = portBase + ":out_" + (i + off);
+                                    disconnectPort(port, "system:playback_" + (i + 1));
+                                    connectPort(port, "Video gain:In " + (i + 1), false);
+                                });
                         connectPortUnlessArdour("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
                         e.printStackTrace();
