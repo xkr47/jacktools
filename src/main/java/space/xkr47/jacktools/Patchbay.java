@@ -316,12 +316,15 @@ public class Patchbay {
                 if (separateMidi.isPresent()) {
                     String separateMidi2 = separateMidi.get();
                     try {
-                        List<String> portsToMove = new ArrayList<>(cp.get(origMidiSrc));
-                        String origMidiSrc2 = origMidiSrc;
-                        portsToMove.forEach(dst -> {
-                            disconnectPort(origMidiSrc2, dst);
-                            connectPort(separateMidi2, dst, true);
-                        });
+                        Set<String> portsToMove2 = cp.get(origMidiSrc);
+                        if (portsToMove2 != null) {
+                            List<String> portsToMove = new ArrayList<>(portsToMove2);
+                            String origMidiSrc2 = origMidiSrc;
+                            portsToMove.forEach(dst -> {
+                                disconnectPort(origMidiSrc2, dst);
+                                connectPort(separateMidi2, dst, true);
+                            });
+                        }
                     } catch (RuntimeException e) {
                         e.printStackTrace();
                     }
