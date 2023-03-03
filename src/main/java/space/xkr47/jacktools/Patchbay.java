@@ -281,6 +281,22 @@ public class Patchbay {
                                     String port = portBase + ":out_" + (i + off);
                                     disconnectPort(port, "system:playback_" + (i + 1));
                                     connectPort(port, "Video gain:In " + (i + 1), false);
+                                    if (i == 0) {
+                                        int i1 = 1;
+                                        String port1 = portBase + ":out_" + (i1 + off);
+                                        System.out.println(" CHK "+ port1);
+                                        //disconnectPort(port1, "system:playback_" + (i1 + 1));
+                                        if (cp.containsKey(port1)) {
+                                            System.out.println(" STEREO");
+                                            // stereo - remove possible mono connections
+                                            disconnectPort(port, "system:playback_" + (i1 + 1));
+                                            disconnectPort(port, "Video gain:In " + (i1 + 1));
+                                        } else {
+                                            System.out.println(" MONO");
+                                            // mono - add second connection
+                                            connectPort(port, "Video gain:In " + (i1 + 1), false);
+                                        }
+                                    }
                                 });
                         connectPortUnlessArdour("Video gain:Out " + (i + 1), "system:playback_" + (i + 1), true);
                     } catch (RuntimeException e) {
