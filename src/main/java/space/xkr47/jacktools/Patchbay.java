@@ -320,8 +320,9 @@ public class Patchbay {
                 }
 
                 System.out.println("* Piano midi via yamaha-mapper");
-                boolean hasYamahaMapper = cp.containsKey("xkr-yamaha-mapper:in");
+                boolean hasYamahaMapper = cp.containsKey("xkr-yamaha-mapper:from_piano_in");
                 String origMidiSrc = "system:midi_capture_1";
+                String origMidiDst = "system:midi_playback_1";
                 Optional<String> separateMidi = cp.keySet().stream()
                         .filter(dst -> SEPARATE_MIDI_RE.matcher(dst).matches())
                         .findAny();
@@ -341,15 +342,17 @@ public class Patchbay {
                         e.printStackTrace();
                     }
                     origMidiSrc = separateMidi2;
+                    origMidiDst = separateMidi2.replace("capture", "playback");
                 }
 
-                String midiSrc = hasYamahaMapper ? "xkr-yamaha-mapper:out" : origMidiSrc;
+                String midiSrc = hasYamahaMapper ? "xkr-yamaha-mapper:from_piano_out" : origMidiSrc;
                 if (hasYamahaMapper) {
                     try {
-                        connectPort(origMidiSrc, "xkr-yamaha-mapper:in", true);
+                        connectPort(origMidiSrc, "xkr-yamaha-mapper:from_piano_in", true);
+                        connectPort("xkr-yamaha-mapper:to_piano_out", origMidiDst, true);
                         List<String> portsToMove = cp.get(origMidiSrc).stream()
-                                .filter(dst -> !"xkr-yamaha-mapper:in".equals(dst))
-                                .collect(toList());
+                            .filter(dst -> !"xkr-yamaha-mapper:from_piano_in".equals(dst))
+                            .collect(toList());
                         String origMidiSrc2 = origMidiSrc;
                         portsToMove.forEach(dst -> {
                             disconnectPort(origMidiSrc2, dst);
